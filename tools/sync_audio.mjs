@@ -14,7 +14,7 @@
  * done-tracking keep matching after a resync.
  */
 
-import { writeFileSync, mkdirSync, readdirSync, unlinkSync, readFileSync } from "node:fs";
+import { writeFileSync, mkdirSync, readdirSync, unlinkSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -29,22 +29,36 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const audioDir = join(root, "audio");
 mkdirSync(audioDir, { recursive: true });
 
+// Fetch with retry: Drive returns 403/429 when rate-limited on bursts of
+// downloads — back off and try again instead of failing the whole sync.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function fetchWithRetry(url, label, tries = 6) {
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(url).catch((e) => ({ ok: false, status: 0, text: async () => String(e) }));
+    if (res.ok) return res;
+    const retryable = res.status === 0 || res.status === 403 || res.status === 429 || res.status >= 500;
+    if (!retryable || attempt >= tries) {
+      console.error(`${label}: HTTP ${res.status} after ${attempt} attempt(s): ${(await res.text()).slice(0, 200)}`);
+      process.exit(1);
+    }
+    const wait = Math.min(60000, 1000 * 2 ** attempt) + Math.floor(Math.random() * 1000);
+    console.log(`  … ${label}: HTTP ${res.status}, retrying in ${Math.round(wait / 1000)}s (attempt ${attempt}/${tries})`);
+    await sleep(wait);
+  }
+}
+
 // List every audio file in the folder
 const clips = [];
 let pageToken = "";
 do {
   const params = new URLSearchParams({
     q: `'${folderId}' in parents and trashed = false and mimeType contains 'audio/'`,
-    fields: "nextPageToken, files(id, name)",
+    fields: "nextPageToken, files(id, name, size)",
     pageSize: "1000",
     key: apiKey,
   });
   if (pageToken) params.set("pageToken", pageToken);
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`);
-  if (!res.ok) {
-    console.error(`Drive API error ${res.status}: ${await res.text()}`);
-    process.exit(1);
-  }
+  const res = await fetchWithRetry(`https://www.googleapis.com/drive/v3/files?${params}`, "list folder");
   const data = await res.json();
   clips.push(...(data.files ?? []));
   pageToken = data.nextPageToken ?? "";
@@ -61,19 +75,30 @@ if (clips.length === 0) {
 // Flatten names so they're safe as repo paths (no subdirs, no weird chars)
 const safeName = (name) => name.replace(/[^\w.\- ]+/g, "_");
 
-// Download each clip
+// Download each clip, skipping files we already have (same name + size) —
+// this makes reruns fast and lets an interrupted sync resume where it stopped.
+let downloaded = 0;
+let skipped = 0;
 for (const clip of clips) {
   clip.file = safeName(clip.name);
-  const res = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${clip.id}?alt=media&key=${apiKey}`
-  );
-  if (!res.ok) {
-    console.error(`Download failed for ${clip.name}: HTTP ${res.status}`);
-    process.exit(1);
+  const dest = join(audioDir, clip.file);
+  try {
+    if (clip.size && statSync(dest).size === Number(clip.size)) {
+      skipped++;
+      continue;
+    }
+  } catch {
+    /* not downloaded yet */
   }
-  writeFileSync(join(audioDir, clip.file), Buffer.from(await res.arrayBuffer()));
+  const res = await fetchWithRetry(
+    `https://www.googleapis.com/drive/v3/files/${clip.id}?alt=media&key=${apiKey}`,
+    `download ${clip.name}`
+  );
+  writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
+  downloaded++;
   console.log(`  ↓ ${clip.file}`);
 }
+if (skipped) console.log(`  = ${skipped} already up to date, ${downloaded} downloaded`);
 
 // Remove local files that no longer exist in Drive
 const wanted = new Set(clips.map((c) => c.file));
