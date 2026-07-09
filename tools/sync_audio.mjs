@@ -14,7 +14,7 @@
  * done-tracking keep matching after a resync.
  */
 
-import { writeFileSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
+import { writeFileSync, mkdirSync, readdirSync, unlinkSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -85,10 +85,20 @@ for (const existing of readdirSync(audioDir)) {
 }
 
 clips.sort((a, b) => a.name.localeCompare(b.name));
-const manifest = {
-  generated: new Date().toISOString(),
-  folder: folderId,
-  clips: clips.map((c) => ({ id: c.id, name: c.name, src: `audio/${c.file}` })),
-};
+const newClips = clips.map((c) => ({ id: c.id, name: c.name, src: `audio/${c.file}` }));
+
+// Keep the old "generated" timestamp when nothing changed, so a no-op sync
+// produces no diff (and the GitHub Action makes no commit).
+let generated = new Date().toISOString();
+try {
+  const old = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));
+  if (JSON.stringify(old.clips) === JSON.stringify(newClips) && old.generated) {
+    generated = old.generated;
+  }
+} catch {
+  /* no previous manifest */
+}
+
+const manifest = { generated, folder: folderId, clips: newClips };
 writeFileSync(join(root, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
 console.log(`Synced ${clips.length} clips into audio/ and updated manifest.json`);
