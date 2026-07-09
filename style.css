@@ -418,7 +418,7 @@ textarea:focus-visible { outline-color: var(--signal); }
 }
 .name-form input::placeholder { color: var(--ink-soft); opacity: 0.7; }
 
-.leaderboard-link { margin: 0.75rem 0 0; }
+.leaderboard-link { margin: 1rem 0 0; }
 .leaderboard-link a {
   font-family: var(--mono);
   font-size: 0.75rem;
@@ -427,6 +427,29 @@ textarea:focus-visible { outline-color: var(--signal); }
   text-decoration: none;
 }
 .leaderboard-link a:hover { color: var(--signal); text-decoration: underline; }
+
+.leaderboard-link a.btn-leaderboard {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #1c1405;
+  background: var(--amber);
+  border: 1px solid var(--amber);
+  border-radius: 6px;
+  padding: 0.55rem 1rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+.leaderboard-link a.btn-leaderboard:hover {
+  background: #ffb63f;
+  color: #1c1405;
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .leaderboard-link a.btn-leaderboard:hover { transform: none; }
+}
 
 /* ── Leaderboard ──────────────────────────────────────────────────────── */
 
