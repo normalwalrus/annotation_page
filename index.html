@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Listen. Type. Next.</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎙️</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="masthead">
+      <p class="eyebrow">Annotation session</p>
+      <h1>Listen.<br />Type. Next.</h1>
+      <p class="lede">
+        Short recordings, typed exactly as you hear them. Every save goes
+        straight to the research sheet.
+      </p>
+      <p class="session-chip" aria-live="polite">
+        SAVED THIS SESSION&nbsp;·&nbsp;<span id="session-count">0</span>
+      </p>
+      <p class="session-chip name-chip hidden" id="name-chip">
+        ANNOTATOR&nbsp;·&nbsp;<span id="name-chip-value"></span>
+        <button id="change-name-btn" class="chip-btn" type="button">change</button>
+      </p>
+      <p class="leaderboard-link"><a href="leaderboard.html">View the leaderboard →</a></p>
+    </header>
+
+    <details class="fieldnotes">
+      <summary>How to transcribe</summary>
+      <ul>
+        <li>Listen to the whole clip before saving. Replay as often as you need.</li>
+        <li>Type exactly what you hear, in normal sentence case with punctuation.</li>
+        <li>Numbers: write them the way they were spoken — “twenty five” if said as words, “2 5” if spelled out.</li>
+        <li>Unclear word? Give your best guess in brackets: <code>[unclear]</code> or <code>[market?]</code>.</li>
+        <li>Nothing intelligible at all? Use <em>Can't make it out</em> — that answer counts too.</li>
+        <li>Shortcuts: <kbd>Ctrl</kbd>+<kbd>Space</kbd> play/pause · <kbd>Ctrl</kbd>+<kbd>&larr;</kbd> restart · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> save.</li>
+      </ul>
+    </details>
+
+    <section id="loading" class="status-card">
+      <p>Loading the clip list…</p>
+    </section>
+
+    <section id="error" class="status-card hidden">
+      <p id="error-message"></p>
+      <button id="retry-btn" class="btn">Try again</button>
+    </section>
+
+    <section id="done" class="status-card hidden">
+      <p class="done-mark">END OF TAPE</p>
+      <p>Every clip on this device is transcribed. Thank you — your session is complete.</p>
+    </section>
+
+    <section id="name-gate" class="status-card hidden">
+      <p class="done-mark">WHO'S ON TAPE?</p>
+      <p>Enter your name once — it's attached to every transcript you save and shown on the leaderboard.</p>
+      <form id="name-form" class="name-form">
+        <input id="name-input" type="text" maxlength="80" autocomplete="name" placeholder="Your name" required />
+        <button type="submit" class="btn btn-save">Start annotating</button>
+      </form>
+    </section>
+
+    <section id="annotator" class="hidden">
+      <div class="device" role="group" aria-label="Audio player">
+        <p class="tape-label" id="clip-name"></p>
+
+        <div class="lcd">
+          <canvas id="waveform" height="96" aria-label="Waveform. Click to seek."></canvas>
+          <div class="lcd-row">
+            <span id="lcd-status" class="lcd-status">STANDBY</span>
+            <span id="time" class="lcd-time">0:00 / 0:00</span>
+          </div>
+        </div>
+
+        <div class="transport">
+          <button id="play-btn" class="play-btn" title="Play / pause (Ctrl+Space)" aria-label="Play">
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+              <path class="icon-play" d="M8 5v14l11-7z" fill="currentColor" />
+              <g class="icon-pause" fill="currentColor">
+                <rect x="6" y="5" width="4" height="14" />
+                <rect x="14" y="5" width="4" height="14" />
+              </g>
+            </svg>
+          </button>
+
+          <div class="speed" id="speed" role="group" aria-label="Playback speed">
+            <button data-speed="0.5">.5×</button>
+            <button data-speed="0.75">.75×</button>
+            <button data-speed="1" class="active">1×</button>
+            <button data-speed="1.25">1.25×</button>
+            <button data-speed="1.5">1.5×</button>
+          </div>
+
+          <button id="loop" class="loop-btn" aria-pressed="false" title="Repeat the clip until you save">LOOP</button>
+        </div>
+      </div>
+
+      <label class="transcript-label" for="transcription">Transcript</label>
+      <textarea
+        id="transcription"
+        rows="4"
+        placeholder="Play the clip, then type what you hear…"
+        autocomplete="off"
+        spellcheck="true"
+      ></textarea>
+
+      <div class="actions">
+        <button id="skip-btn" class="btn btn-quiet">Can't make it out — skip</button>
+        <button id="submit-btn" class="btn btn-save" disabled>Save &amp; next clip</button>
+      </div>
+      <p id="hint" class="hint">Play the clip once, then type what you hear.</p>
+    </section>
+
+    <div id="toast" class="toast hidden" role="status"></div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
