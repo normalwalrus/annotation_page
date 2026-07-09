@@ -15,9 +15,9 @@
  * annotations and confident count), ranked for the leaderboard page.
  *
  * Setup (see README.md for the full walkthrough):
- *   1. Create a Google Sheet. In row 1 put headers:
- *      timestamp | clip_id | clip_name | text | skipped | received_at
- *   2. Extensions → Apps Script, paste this file, save.
+ *   1. Create a Google Sheet.
+ *   2. Extensions → Apps Script, paste this file, save, then run setup()
+ *      once — it writes the 8-column header row and triggers authorization.
  *   3. Deploy → New deployment → type "Web app"
  *        Execute as: Me
  *        Who has access: Anyone

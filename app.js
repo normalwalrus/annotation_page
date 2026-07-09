@@ -208,6 +208,7 @@
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       objectUrl = URL.createObjectURL(new Blob([buf]));
       audio.src = objectUrl;
+      audio.playbackRate = currentSpeed(); // some browsers reset the rate on a new source
       try {
         const Ctx = window.AudioContext || window.webkitAudioContext;
         const actx = new Ctx();
@@ -220,6 +221,7 @@
     } catch (e) {
       if (e.name === "AbortError") return;
       audio.src = audioUrl(clip); // fall back to plain streaming
+      audio.playbackRate = currentSpeed();
     }
     drawWave();
   }

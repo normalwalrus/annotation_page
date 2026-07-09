@@ -14,9 +14,12 @@ Browser (GitHub Pages)
   └─ Google Apps Script ....... appends each annotation to your Google Sheet
 ```
 
-Features: random clip selection with no repeats per device (localStorage),
-speed control, loop, keyboard shortcuts, must-listen + non-empty guardrails,
-skip/can't-hear button, auto-advance with session counter.
+Features: waveform player (click to seek) with speed control, loop, and
+keyboard shortcuts; random clip selection with no repeats per device;
+must-listen + non-empty guardrails and a skip/can't-hear button;
+auto-advance with a session counter; per-annotator names with a ranked
+leaderboard; server-side agreement scoring (word-level WER) that marks
+transcriptions "confident" when two annotators independently agree.
 
 ---
 
