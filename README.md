@@ -110,7 +110,7 @@ Everything is in the Google Sheet, one row per submission:
 | timestamp (client) | clip_id | clip_name | text | skipped | received_at (server) | confident | annotator |
 
 Filter `skipped = TRUE` to find unintelligible clips. Multiple people may
-annotate the same clip (the "no repeats" tracking is per browser).
+annotate the same clip (the "no repeats" tracking is per annotator name).
 
 **`confident`**: on every submission the script compares the new text against
 all earlier non-skipped annotations of the same `clip_id` using word-level WER
@@ -149,8 +149,12 @@ submission.
 
 ## Notes & limits
 
-- **"No repeats" is per device.** It lives in localStorage; clearing browser
-  data resets it. There are no user accounts by design.
+- **"No repeats" is per user.** At session start the app asks the backend
+  (`GET ?action=done&name=X`) which clips that name has already submitted or
+  skipped, so switching devices doesn't cause repeats. Names are matched
+  case-insensitively; two people using the same name are treated as one
+  annotator. The list is also cached per-name in localStorage, so the app
+  still works if that lookup fails mid-outage.
 - **Repo size.** Short clips are tiny (hundreds of ~100KB WAVs ≈ tens of MB),
   well within GitHub's limits. If you ever host hours of audio, move the files
   to a bucket (Cloudflare R2 / S3) — only `audioUrl()` in `app.js` and the

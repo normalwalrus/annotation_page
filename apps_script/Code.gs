@@ -143,10 +143,29 @@ function doGet(e) {
   try {
     var action = e && e.parameter ? e.parameter.action : "";
     if (action === "leaderboard") return respond(getLeaderboard());
+    if (action === "done") return respond(getDoneClips(e.parameter.name));
     return respond({ status: "ok", message: "Annotation endpoint is live. POST to submit." });
   } catch (err) {
     return respond({ status: "error", message: String(err) });
   }
+}
+
+// GET ?action=done&name=X — clip_ids this annotator has already submitted or
+// skipped, matched case-insensitively. Lets the app avoid repeats per USER
+// (across devices), not just per browser.
+function getDoneClips(name) {
+  name = String(name || "").trim().toLowerCase();
+  if (!name) return { status: "ok", clip_ids: [] };
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var values = sheet.getDataRange().getValues();
+  var ids = {};
+  for (var r = 1; r < values.length; r++) {
+    var row = values[r];
+    if (String(row[COL_ANNOTATOR - 1] || "").trim().toLowerCase() !== name) continue;
+    var id = String(row[COL_CLIP_ID - 1] || "");
+    if (id) ids[id] = true;
+  }
+  return { status: "ok", clip_ids: Object.keys(ids) };
 }
 
 function getLeaderboard() {

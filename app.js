@@ -2,7 +2,7 @@
   "use strict";
 
   const cfg = window.APP_CONFIG || {};
-  const DONE_KEY = "annotation_done_v1"; // clip ids this browser has finished (saved or skipped)
+  const DONE_KEY_LEGACY = "annotation_done_v1"; // old device-wide key, migrated on first run
   const NAME_KEY = "annotator_name_v1";
   const WAVE_BUCKETS = 220;
   const AMBER = "#f5a623";
@@ -52,14 +52,30 @@
   audio.preload = "auto";
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+  // Done clips are tracked PER USER: keyed by the annotator's name locally,
+  // and merged with the sheet's record for that name at session start.
+  const doneKey = () => `${DONE_KEY_LEGACY}:${getName().toLowerCase()}`;
   const loadDone = () => {
     try {
-      return new Set(JSON.parse(localStorage.getItem(DONE_KEY) || "[]"));
+      return new Set(JSON.parse(localStorage.getItem(doneKey()) || "[]"));
     } catch {
       return new Set();
     }
   };
-  const saveDone = (set) => localStorage.setItem(DONE_KEY, JSON.stringify([...set]));
+  const saveDone = (set) => localStorage.setItem(doneKey(), JSON.stringify([...set]));
+
+  // One-time migration of the old device-wide done list into this user's list.
+  const migrateLegacyDone = () => {
+    const legacy = localStorage.getItem(DONE_KEY_LEGACY);
+    if (legacy === null) return;
+    try {
+      const merged = new Set([...loadDone(), ...JSON.parse(legacy)]);
+      saveDone(merged);
+    } catch {
+      /* unreadable legacy data — drop it */
+    }
+    localStorage.removeItem(DONE_KEY_LEGACY);
+  };
 
   const getName = () => (localStorage.getItem(NAME_KEY) || "").trim();
   const setName = (name) => localStorage.setItem(NAME_KEY, name);
@@ -181,6 +197,17 @@
       return;
     }
     refreshNameChip();
+    migrateLegacyDone();
+
+    // Ask the sheet which clips this name has already done (any device).
+    // Fires alongside the manifest fetch; failure just means local-only tracking.
+    const doneFetch = fetch(
+      `${cfg.SHEETS_ENDPOINT}?action=done&name=${encodeURIComponent(getName())}`,
+      { cache: "no-store" }
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+
     try {
       const res = await fetch("manifest.json", { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -188,6 +215,13 @@
       clips = manifest.clips || [];
     } catch (e) {
       return fail(`The clip list didn't load (${e.message}). Check your connection and try again.`);
+    }
+
+    const serverDone = await doneFetch;
+    if (serverDone && Array.isArray(serverDone.clip_ids) && serverDone.clip_ids.length) {
+      const done = loadDone();
+      serverDone.clip_ids.forEach((id) => done.add(id));
+      saveDone(done);
     }
     if (clips.length === 0) {
       return fail("The clip list is empty. Run tools/generate_manifest.mjs and commit the result.");
@@ -237,7 +271,7 @@
     hasPlayed = false;
     submitting = false;
     els.text.value = "";
-    els.clipName.textContent = `REC ${current.name} · ${remaining.length} left on this device`;
+    els.clipName.textContent = `REC ${current.name} · ${remaining.length} left for you`;
     els.time.textContent = "0:00 / 0:00";
     show(els.annotator);
     sizeCanvas();
