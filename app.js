@@ -69,8 +69,7 @@
     els.nameChip.classList.toggle("hidden", !name);
   };
 
-  const audioUrl = (clip) =>
-    `https://www.googleapis.com/drive/v3/files/${clip.id}?alt=media&key=${cfg.DRIVE_API_KEY}`;
+  const audioUrl = (clip) => encodeURI(clip.src || `audio/${clip.name}`);
 
   const fmtTime = (s) => {
     if (!isFinite(s)) return "0:00";
@@ -172,9 +171,6 @@
   // ── Clip loading ───────────────────────────────────────────────────────────
   async function init() {
     show(els.loading);
-    if (!cfg.DRIVE_API_KEY || cfg.DRIVE_API_KEY.startsWith("PASTE_")) {
-      return fail("Setup incomplete: DRIVE_API_KEY is not set in config.js.");
-    }
     if (!cfg.SHEETS_ENDPOINT || cfg.SHEETS_ENDPOINT.startsWith("PASTE_")) {
       return fail("Setup incomplete: SHEETS_ENDPOINT is not set in config.js.");
     }
@@ -223,7 +219,7 @@
       }
     } catch (e) {
       if (e.name === "AbortError") return;
-      audio.src = audioUrl(clip); // fall back to direct streaming
+      audio.src = audioUrl(clip); // fall back to plain streaming
     }
     drawWave();
   }

@@ -1,13 +1,16 @@
 # Audio Transcription Tool
 
 A static audio-annotation page for GitHub Pages. Annotators hear a random short
-clip streamed from your Google Drive folder, type what they hear, and each
-submission lands as a row in a Google Sheet you own.
+clip, type what they hear, and each submission lands as a row in a Google Sheet
+you own. Your Google Drive folder is the master copy of the audio; a GitHub
+Action copies clips into the repo so the published page never needs a Drive
+API key (the key lives only in GitHub Secrets).
 
 ```
+Google Drive (master audio)
+  └─ GitHub Action (sync-audio) ── downloads clips into audio/ + manifest.json
 Browser (GitHub Pages)
-  ├─ manifest.json ............ list of clips (committed to this repo)
-  ├─ Google Drive API ......... streams the audio (read-only, free API key)
+  ├─ audio/ + manifest.json ... served straight from this repo
   └─ Google Apps Script ....... appends each annotation to your Google Sheet
 ```
 
@@ -31,9 +34,14 @@ skip/can't-hear button, auto-advance with session counter.
 2. **APIs & Services → Library** → search **Google Drive API** → Enable.
 3. **APIs & Services → Credentials → Create credentials → API key.**
 4. Recommended: click the key → under **API restrictions** choose
-   **Restrict key → Google Drive API**. (The key is visible in the page source,
-   so restricting it means the worst anyone can do is read your public files.)
-5. Paste the key into `DRIVE_API_KEY` in `config.js`.
+   **Restrict key → Google Drive API**.
+5. Store it as a GitHub Actions secret — **never in `config.js`** (the page
+   doesn't use it):
+   ```bash
+   gh secret set DRIVE_API_KEY --body "<the key>"
+   gh secret set DRIVE_FOLDER_ID --body "<the audio folder's Drive ID>"
+   ```
+   (Or on github.com: repo → Settings → Secrets and variables → Actions.)
 
 ### 3. Google Sheets — collect the results
 
@@ -53,16 +61,18 @@ skip/can't-hear button, auto-advance with session counter.
 > If you later edit the script, use **Deploy → Manage deployments → Edit →
 > New version** — otherwise the `/exec` URL keeps serving the old code.
 
-### 4. Generate the clip manifest
+### 4. Sync the audio into the repo
 
-Requires Node 18+:
+After adding/removing clips in the Drive folder, either:
 
-```bash
-node tools/generate_manifest.mjs <DRIVE_FOLDER_ID> <API_KEY>
-```
-
-This overwrites `manifest.json` with every audio file in the folder.
-**Rerun and commit whenever you add or remove clips.**
+- **On GitHub**: repo → **Actions → Sync audio from Google Drive → Run
+  workflow**. It downloads the clips into `audio/`, regenerates
+  `manifest.json`, and commits — the site updates a minute later.
+- **Locally** (Node 18+):
+  ```bash
+  node tools/sync_audio.mjs <DRIVE_FOLDER_ID> <API_KEY>
+  git add audio manifest.json && git commit -m "Sync audio" && git push
+  ```
 
 ### 5. Publish on GitHub Pages
 
@@ -138,9 +148,15 @@ submission.
 
 - **"No repeats" is per device.** It lives in localStorage; clearing browser
   data resets it. There are no user accounts by design.
-- **Drive quotas.** Fine for hundreds of short clips with modest traffic; if
-  you ever scale to heavy traffic, move the audio to a real bucket
-  (Cloudflare R2 / S3) — only `audioUrl()` in `app.js` needs to change.
+- **Repo size.** Short clips are tiny (hundreds of ~100KB WAVs ≈ tens of MB),
+  well within GitHub's limits. If you ever host hours of audio, move the files
+  to a bucket (Cloudflare R2 / S3) — only `audioUrl()` in `app.js` and the
+  sync script need to change.
+- **What's public.** The page contains no secrets: the Drive API key lives
+  only in GitHub Actions secrets, and the audio files themselves are public
+  (they were already in a publicly shared Drive folder). `SHEETS_ENDPOINT` is
+  visible by necessity — every annotator's browser POSTs to it — and can only
+  append rows.
 - **Spam.** The endpoint is public (that's what makes it work without
   logins). The Apps Script rejects malformed payloads, but a determined
   troll could still post junk rows — acceptable for a small trusted-ish
