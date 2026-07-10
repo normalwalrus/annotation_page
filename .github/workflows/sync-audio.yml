@@ -4,7 +4,8 @@ on:
   workflow_dispatch: {} # run it from the Actions tab after adding clips to Drive
   push:
     branches: [main]
-    paths: [tools/sync_audio.mjs] # re-transcode when the pipeline itself changes
+    # re-transcode when the pipeline itself changes
+    paths: [tools/sync_audio.mjs, .github/workflows/sync-audio.yml]
 
 permissions:
   contents: write
@@ -22,6 +23,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Install ffmpeg
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
 
       - name: Download clips and regenerate manifest
         env:
