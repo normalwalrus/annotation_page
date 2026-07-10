@@ -129,7 +129,7 @@ function doPost(e) {
       annotator,
     ]);
 
-    CacheService.getScriptCache().remove("leaderboard_v1");
+    CacheService.getScriptCache().removeAll(["leaderboard_v1", "stats_v1"]);
     return respond({ status: "ok", confident: confident });
   } catch (err) {
     return respond({ status: "error", message: String(err) });
@@ -143,6 +143,7 @@ function doGet(e) {
   try {
     var action = e && e.parameter ? e.parameter.action : "";
     if (action === "leaderboard") return respond(getLeaderboard());
+    if (action === "stats") return respond(getStats());
     if (action === "done") return respond(getDoneClips(e.parameter.name));
     return respond({ status: "ok", message: "Annotation endpoint is live. POST to submit." });
   } catch (err) {
@@ -194,6 +195,53 @@ function getLeaderboard() {
   });
   var result = { status: "ok", generated_at: new Date().toISOString(), leaderboard: rows };
   cache.put("leaderboard_v1", JSON.stringify(result), 60); // 60s cache
+  return result;
+}
+
+// GET ?action=stats — everything the dashboard needs in one call: overall
+// totals, per-clip aggregate counts (never the transcript text — the site is
+// public), submissions per day, and the leaderboard rows. The page combines
+// the per-clip counts with manifest.json to compute coverage of the live set.
+function getStats() {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get("stats_v1");
+  if (cached) return JSON.parse(cached);
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var values = sheet.getDataRange().getValues();
+  var COL_RECEIVED = 6; // F
+  var clipAgg = {}; // clip_id -> [transcriptions, confident, skips]
+  var perDay = {}; // "YYYY-MM-DD" (UTC) -> submissions incl. skips
+  var totals = { transcriptions: 0, skips: 0 };
+  for (var r = 1; r < values.length; r++) {
+    var row = values[r];
+    var id = String(row[COL_CLIP_ID - 1] || "");
+    if (!id) continue;
+    var agg = clipAgg[id] || (clipAgg[id] = [0, 0, 0]);
+    if (row[COL_SKIPPED - 1] === true) {
+      totals.skips += 1;
+      agg[2] += 1;
+    } else {
+      totals.transcriptions += 1;
+      agg[0] += 1;
+      if (row[COL_CONFIDENT - 1] === true) agg[1] += 1;
+    }
+    var when = new Date(row[COL_RECEIVED - 1] || row[0]);
+    if (!isNaN(when.getTime())) {
+      var day = when.toISOString().slice(0, 10);
+      perDay[day] = (perDay[day] || 0) + 1;
+    }
+  }
+
+  var result = {
+    status: "ok",
+    generated_at: new Date().toISOString(),
+    totals: totals,
+    clips: clipAgg,
+    per_day: perDay,
+    leaderboard: getLeaderboard().leaderboard,
+  };
+  cache.put("stats_v1", JSON.stringify(result), 60); // 60s cache
   return result;
 }
 

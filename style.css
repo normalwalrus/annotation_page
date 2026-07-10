@@ -508,3 +508,120 @@ tr.me {
   outline: 2px solid var(--amber);
   background: rgba(245, 166, 35, 0.12);
 }
+
+/* ── Dashboard ────────────────────────────────────────────────────────── */
+
+.back-link { margin: 0 0 2rem; }
+
+.session-chip:empty { display: none; }
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 2rem 0 0.6rem;
+}
+
+.dash-device { padding: 1rem; }
+.dash-lcd { display: grid; gap: 0.7rem; padding: 0.9rem 1rem; }
+
+/* Tape gauges: amber fill on a dim step of the same ramp, like the waveform */
+.gauge {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr auto;
+  gap: 0.7rem;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+}
+.gauge-label { color: #aeb6be; font-weight: 600; }
+.gauge-track {
+  display: block;
+  height: 10px;
+  background: var(--amber-dim);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.gauge-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--amber);
+  border-radius: 2px 0 0 2px;
+}
+.gauge-value {
+  color: var(--amber);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.gauge-note {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  color: #7c858e;
+  margin: 0.1rem 0 0;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.kpi {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  padding: 0.7rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.kpi-label {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.kpi-value { font-size: 1.55rem; font-weight: 600; line-height: 1.2; }
+
+.activity-chart { position: relative; }
+.activity-chart svg { display: block; width: 100%; height: auto; }
+.chart-empty {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  color: var(--amber-dim);
+  text-align: center;
+  margin: 3rem 0;
+}
+.chart-tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: #e6e9ec;
+  background: #262b31;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  padding: 0.25rem 0.55rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 5;
+}
+
+.chart-table { margin: 0.75rem 0 0; }
+.chart-table .lb-table { margin-top: 0.6rem; }
+
+@media (max-width: 480px) {
+  .gauge { grid-template-columns: 5.5rem 1fr; }
+  .gauge-value { grid-column: 2; justify-self: end; }
+}

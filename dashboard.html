@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Live dashboard: how much of the clip set is transcribed, agreement quality, daily activity, and the annotator standings." />
+  <meta name="theme-color" content="#262b31" />
+  <title>Dashboard — Listen. Type. Next.</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://script.google.com" />
+  <link rel="preconnect" href="https://script.googleusercontent.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <p class="leaderboard-link back-link"><a class="btn-leaderboard" href="index.html">⏮ Back to annotating</a></p>
+
+    <header class="masthead">
+      <p class="eyebrow">Project dashboard</p>
+      <h1>The Full<br />Tape Count.</h1>
+      <p class="lede">Coverage, momentum, and standings for the whole clip set — updated as transcripts land.</p>
+      <p class="session-chip" id="dash-updated" aria-live="polite"></p>
+    </header>
+
+    <section id="dash-loading" class="status-card">
+      <p>Counting the tapes…</p>
+    </section>
+
+    <section id="dash-error" class="status-card hidden">
+      <p id="dash-error-message"></p>
+      <button id="dash-retry-btn" class="btn">Try again</button>
+    </section>
+
+    <section id="dash-content" class="hidden">
+      <h2 class="section-label">Tape progress</h2>
+      <div class="device dash-device" role="group" aria-label="Overall progress">
+        <div class="lcd dash-lcd">
+          <div class="gauge" id="gauge-transcribed">
+            <span class="gauge-label">TRANSCRIBED</span>
+            <span class="gauge-track"><span class="gauge-fill"></span></span>
+            <span class="gauge-value"></span>
+          </div>
+          <div class="gauge" id="gauge-confident">
+            <span class="gauge-label">CONFIDENT</span>
+            <span class="gauge-track"><span class="gauge-fill"></span></span>
+            <span class="gauge-value"></span>
+          </div>
+          <p class="gauge-note">A clip is transcribed once someone typed what they heard (skips don’t count), and confident once two transcripts agree.</p>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi"><span class="kpi-label">Clips in set</span><span class="kpi-value" id="kpi-clips"></span></div>
+        <div class="kpi"><span class="kpi-label">Transcriptions</span><span class="kpi-value" id="kpi-transcriptions"></span></div>
+        <div class="kpi"><span class="kpi-label">Skips logged</span><span class="kpi-value" id="kpi-skips"></span></div>
+        <div class="kpi"><span class="kpi-label">Annotators</span><span class="kpi-value" id="kpi-annotators"></span></div>
+      </div>
+
+      <h2 class="section-label" id="activity-title">Activity — submissions per day</h2>
+      <div class="device dash-device">
+        <div class="lcd">
+          <div id="activity-chart" class="activity-chart"></div>
+        </div>
+      </div>
+      <details class="fieldnotes chart-table">
+        <summary>View activity as a table</summary>
+        <table class="lb-table" id="activity-table">
+          <thead><tr><th scope="col">Day</th><th scope="col">Submissions</th></tr></thead>
+          <tbody id="activity-table-body"></tbody>
+        </table>
+      </details>
+
+      <h2 class="section-label">Standings</h2>
+      <div class="lb-controls">
+        <input id="highlight-input" type="text" maxlength="80" placeholder="Your name — highlights your row" aria-label="Highlight my name" />
+        <button id="refresh-btn" class="btn">Refresh</button>
+      </div>
+      <p id="lb-empty" class="status-card hidden">No transcripts saved yet — the first save starts the board.</p>
+      <table class="lb-table" id="lb-table">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Annotator</th>
+            <th scope="col">Transcripts</th>
+            <th scope="col">Confident</th>
+          </tr>
+        </thead>
+        <tbody id="lb-body"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="dashboard.js"></script>
+</body>
+</html>

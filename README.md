@@ -121,11 +121,15 @@ punctuation). If any pair agrees with WER &lt; 20%, both rows get
 `confident = TRUE`. Filter on it to get your high-agreement transcriptions;
 the threshold is `CONFIDENT_WER_THRESHOLD` in `apps_script/Code.gs`.
 
-## Leaderboard
+## Dashboard & leaderboard
 
-`leaderboard.html` shows a full ranked table of annotators: rank, name, total
-annotations, and confident count. It reads live data from the Apps Script
-endpoint (`GET ?action=leaderboard`, cached server-side for 60 seconds).
+`dashboard.html` is the project stats hub: coverage gauges (% of the clip set
+transcribed and % confident), headline totals (transcriptions, skips,
+annotators), an activity-over-time chart, and the ranked annotator
+leaderboard. It reads live data from the Apps Script endpoint
+(`GET ?action=stats`, cached server-side for 60 seconds) combined with
+`manifest.json`, and never exposes transcript text — only counts.
+`leaderboard.html` now just redirects there.
 
 - Ranking: total annotations descending; confident count breaks ties.
 - **Skipped submissions don't count** toward totals (so skipping can't inflate

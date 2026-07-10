@@ -2,51 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Annotator standings: transcripts saved and cross-annotator agreement." />
-  <meta name="theme-color" content="#262b31" />
-  <title>Leaderboard — Listen. Type. Next.</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎙️</text></svg>" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap"
-    rel="stylesheet"
-  />
-  <link rel="stylesheet" href="style.css" />
+  <!-- The leaderboard merged into the dashboard; this stub keeps old links working. -->
+  <meta http-equiv="refresh" content="0; url=dashboard.html" />
+  <title>Moved — Listen. Type. Next.</title>
 </head>
 <body>
-  <main class="container">
-    <header class="masthead">
-      <p class="eyebrow">Leaderboard</p>
-      <h1>Top<br />Tapes.</h1>
-      <p class="lede">Ranked by transcripts saved. Confident = transcripts that agree with another annotator.</p>
-      <p class="leaderboard-link"><a href="index.html">← Back to annotating</a></p>
-    </header>
-
-    <div class="lb-controls">
-      <input id="highlight-input" type="text" maxlength="80" placeholder="Type your name to find your row" aria-label="Find your row by name" />
-      <button id="refresh-btn" class="btn">Refresh</button>
-    </div>
-
-    <section id="lb-loading" class="status-card"><p>Loading the standings…</p></section>
-    <section id="lb-error" class="status-card hidden">
-      <p id="lb-error-message"></p>
-      <button id="lb-retry-btn" class="btn">Try again</button>
-    </section>
-    <section id="lb-empty" class="status-card hidden">
-      <p>No named annotations yet. Be the first — go transcribe a clip.</p>
-    </section>
-
-    <table id="lb-table" class="lb-table hidden">
-      <thead>
-        <tr><th>#</th><th>Name</th><th>Annotations</th><th>Confident</th></tr>
-      </thead>
-      <tbody id="lb-body"></tbody>
-    </table>
-    <p id="lb-updated" class="hint"></p>
-  </main>
-  <script src="config.js"></script>
-  <script src="leaderboard.js"></script>
+  <p>The leaderboard is now part of the <a href="dashboard.html">dashboard</a>.</p>
 </body>
 </html>
