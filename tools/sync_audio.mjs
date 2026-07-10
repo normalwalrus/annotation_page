@@ -4,7 +4,12 @@
  * manifest.json with local paths. The published site serves the audio itself,
  * so no Drive API key ever reaches the browser.
  *
- * Usage:
+ * Each clip is transcoded to mono 48 kbps MP3 with ffmpeg — uncompressed
+ * WAVs are ~5× bigger than annotators need for speech transcription.
+ * audio/.sources.json remembers each source file's Drive size so unchanged
+ * clips skip the download + transcode on reruns.
+ *
+ * Usage (requires ffmpeg on PATH; the GitHub runner has it preinstalled):
  *   node tools/sync_audio.mjs <DRIVE_FOLDER_ID> <API_KEY>
  * or with env vars (used by the GitHub Action):
  *   DRIVE_FOLDER_ID=... DRIVE_API_KEY=... node tools/sync_audio.mjs
@@ -15,6 +20,8 @@
  */
 
 import { writeFileSync, mkdirSync, readdirSync, unlinkSync, readFileSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -22,6 +29,13 @@ const folderId = process.argv[2] || process.env.DRIVE_FOLDER_ID;
 const apiKey = process.argv[3] || process.env.DRIVE_API_KEY;
 if (!folderId || !apiKey) {
   console.error("Usage: node tools/sync_audio.mjs <DRIVE_FOLDER_ID> <API_KEY>");
+  process.exit(1);
+}
+
+try {
+  execFileSync("ffmpeg", ["-version"], { stdio: "ignore" });
+} catch {
+  console.error("ffmpeg not found on PATH — it's required to compress clips to MP3.");
   process.exit(1);
 }
 
@@ -72,42 +86,75 @@ if (clips.length === 0) {
   process.exit(1);
 }
 
-// Flatten names so they're safe as repo paths (no subdirs, no weird chars)
+// Flatten names so they're safe as repo paths (no subdirs, no weird chars),
+// and swap the extension for .mp3 — that's what we publish after transcoding.
 const safeName = (name) => name.replace(/[^\w.\- ]+/g, "_");
+const mp3Name = (name) => safeName(name).replace(/\.[^.]*$/, "") + ".mp3";
 
-// Download each clip, skipping files we already have (same name + size) —
-// this makes reruns fast and lets an interrupted sync resume where it stopped.
+// The transcoded file's size no longer matches Drive's, so .sources.json
+// records the source size each MP3 was made from. A matching entry plus an
+// existing output means the clip is up to date; reruns and interrupted syncs
+// only process what's new.
+const SOURCES_FILE = ".sources.json";
+const sourcesPath = join(audioDir, SOURCES_FILE);
+let sources = {};
+try {
+  sources = JSON.parse(readFileSync(sourcesPath, "utf8"));
+} catch {
+  /* first run with no cache — everything gets transcoded */
+}
+
 let downloaded = 0;
 let skipped = 0;
 for (const clip of clips) {
-  clip.file = safeName(clip.name);
+  clip.file = mp3Name(clip.name);
   const dest = join(audioDir, clip.file);
   try {
-    if (clip.size && statSync(dest).size === Number(clip.size)) {
+    if (clip.size && sources[clip.file] === Number(clip.size) && statSync(dest).size > 0) {
       skipped++;
       continue;
     }
   } catch {
-    /* not downloaded yet */
+    /* not transcoded yet */
   }
   const res = await fetchWithRetry(
     `https://www.googleapis.com/drive/v3/files/${clip.id}?alt=media&key=${apiKey}`,
     `download ${clip.name}`
   );
-  writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
+  const tmp = join(tmpdir(), `sync_${clip.id}_${safeName(clip.name)}`);
+  writeFileSync(tmp, Buffer.from(await res.arrayBuffer()));
+  try {
+    // Mono 48 kbps is transparent for speech and ~5× smaller than WAV.
+    execFileSync("ffmpeg", [
+      "-y", "-hide_banner", "-loglevel", "error",
+      "-i", tmp,
+      "-ac", "1", "-b:a", "48k", "-map_metadata", "-1",
+      dest,
+    ]);
+  } finally {
+    unlinkSync(tmp);
+  }
+  sources[clip.file] = Number(clip.size) || 0;
+  writeFileSync(sourcesPath, JSON.stringify(sources, null, 2) + "\n"); // resume point for interrupted syncs
   downloaded++;
   console.log(`  ↓ ${clip.file}`);
 }
-if (skipped) console.log(`  = ${skipped} already up to date, ${downloaded} downloaded`);
+if (skipped) console.log(`  = ${skipped} already up to date, ${downloaded} transcoded`);
 
 // Remove local files that no longer exist in Drive
 const wanted = new Set(clips.map((c) => c.file));
 for (const existing of readdirSync(audioDir)) {
+  if (existing === SOURCES_FILE) continue;
   if (!wanted.has(existing)) {
     unlinkSync(join(audioDir, existing));
+    delete sources[existing];
     console.log(`  ✕ removed ${existing} (no longer in Drive)`);
   }
 }
+for (const cachedName of Object.keys(sources)) {
+  if (!wanted.has(cachedName)) delete sources[cachedName];
+}
+writeFileSync(sourcesPath, JSON.stringify(sources, null, 2) + "\n");
 
 clips.sort((a, b) => a.name.localeCompare(b.name));
 const newClips = clips.map((c) => ({ id: c.id, name: c.name, src: `audio/${c.file}` }));

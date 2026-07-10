@@ -2,6 +2,9 @@ name: Sync audio from Google Drive
 
 on:
   workflow_dispatch: {} # run it from the Actions tab after adding clips to Drive
+  push:
+    branches: [main]
+    paths: [tools/sync_audio.mjs] # re-transcode when the pipeline itself changes
 
 permissions:
   contents: write

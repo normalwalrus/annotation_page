@@ -69,9 +69,11 @@ transcriptions "confident" when two annotators independently agree.
 After adding/removing clips in the Drive folder, either:
 
 - **On GitHub**: repo → **Actions → Sync audio from Google Drive → Run
-  workflow**. It downloads the clips into `audio/`, regenerates
-  `manifest.json`, and commits — the site updates a minute later.
-- **Locally** (Node 18+):
+  workflow**. It downloads the clips, transcodes them to small mono MP3s in
+  `audio/`, regenerates `manifest.json`, and commits — the site updates a
+  minute later. (It also runs automatically when `tools/sync_audio.mjs`
+  changes on `main`.)
+- **Locally** (Node 18+ and ffmpeg on PATH):
   ```bash
   node tools/sync_audio.mjs <DRIVE_FOLDER_ID> <API_KEY>
   git add audio manifest.json && git commit -m "Sync audio" && git push
@@ -155,8 +157,8 @@ submission.
   case-insensitively; two people using the same name are treated as one
   annotator. The list is also cached per-name in localStorage, so the app
   still works if that lookup fails mid-outage.
-- **Repo size.** Short clips are tiny (hundreds of ~100KB WAVs ≈ tens of MB),
-  well within GitHub's limits. If you ever host hours of audio, move the files
+- **Repo size.** Clips are stored as mono 48 kbps MP3s (a short clip is
+  ~20KB; hundreds of them ≈ a few MB), well within GitHub's limits. If you ever host hours of audio, move the files
   to a bucket (Cloudflare R2 / S3) — only `audioUrl()` in `app.js` and the
   sync script need to change.
 - **What's public.** The page contains no secrets: the Drive API key lives

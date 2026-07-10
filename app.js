@@ -229,33 +229,75 @@
     nextClip();
   }
 
+  // One shared AudioContext for waveform decoding — browsers cap how many
+  // can exist, and it only decodes, so it never needs a user gesture.
+  let waveCtx = null;
+  function decodeForPeaks(buf) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!waveCtx) waveCtx = new Ctx();
+    return waveCtx.decodeAudioData(buf.slice(0)); // slice: decode detaches the buffer
+  }
+
+  const fetchBytes = (clip, signal) =>
+    fetch(audioUrl(clip), signal ? { signal } : undefined)
+      .then((res) => (res.ok ? res.arrayBuffer() : null))
+      .catch(() => null);
+
+  // The clip lined up to follow the current one, with its bytes already
+  // downloading while the user types. Consumed by loadAudio via nextClip.
+  let prefetched = null; // { clip, bytes: Promise<ArrayBuffer|null> }
+
+  function prefetchNext(excludeId) {
+    const done = loadDone();
+    const candidates = clips.filter((c) => !done.has(c.id) && c.id !== excludeId);
+    if (candidates.length === 0) {
+      prefetched = null;
+      return;
+    }
+    const clip = candidates[Math.floor(Math.random() * candidates.length)];
+    prefetched = { clip, bytes: fetchBytes(clip) };
+  }
+
   async function loadAudio(clip) {
     if (aborter) aborter.abort();
     aborter = new AbortController();
     peaks = flatPeaks();
     drawWave();
-    try {
-      const res = await fetch(audioUrl(clip), { signal: aborter.signal });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const buf = await res.arrayBuffer();
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+      objectUrl = null;
+    }
+
+    // Claim the prefetched entry now (synchronously) if it's for this clip —
+    // nextClip calls prefetchNext right after us, which overwrites it.
+    const pre = prefetched && prefetched.clip.id === clip.id ? prefetched : null;
+    if (pre) prefetched = null;
+
+    let buf = null;
+    if (pre) {
+      // Usually already downloaded while the user typed — play from memory.
+      audio.removeAttribute("src");
+      buf = await pre.bytes;
       if (clip !== current) return; // user already advanced
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    }
+    if (buf) {
       objectUrl = URL.createObjectURL(new Blob([buf]));
       audio.src = objectUrl;
-      audio.playbackRate = currentSpeed(); // some browsers reset the rate on a new source
-      try {
-        const Ctx = window.AudioContext || window.webkitAudioContext;
-        const actx = new Ctx();
-        const decoded = await actx.decodeAudioData(buf.slice(0));
-        actx.close();
-        if (clip === current) peaks = computePeaks(decoded);
-      } catch {
-        /* undecodable in this browser — keep flat bars, playback still works */
-      }
-    } catch (e) {
-      if (e.name === "AbortError") return;
-      audio.src = audioUrl(clip); // fall back to plain streaming
-      audio.playbackRate = currentSpeed();
+    } else {
+      // No prefetch (first clip, or it failed): hand the URL straight to the
+      // element so playback can start before the download finishes.
+      audio.src = audioUrl(clip);
+    }
+    audio.playbackRate = currentSpeed(); // some browsers reset the rate on a new source
+
+    // Waveform peaks decode in parallel; playback never waits on this.
+    try {
+      if (!buf) buf = await fetchBytes(clip, aborter.signal);
+      if (!buf || clip !== current) return;
+      const decoded = await decodeForPeaks(buf);
+      if (clip === current) peaks = computePeaks(decoded);
+    } catch {
+      /* undecodable in this browser — keep flat bars, playback still works */
     }
     drawWave();
   }
@@ -264,10 +306,15 @@
     const done = loadDone();
     const remaining = clips.filter((c) => !done.has(c.id));
     if (remaining.length === 0) {
+      prefetched = null;
       show(els.done);
       return;
     }
-    current = remaining[Math.floor(Math.random() * remaining.length)];
+    // Prefer the clip whose bytes we started fetching while the user typed.
+    current =
+      prefetched && !done.has(prefetched.clip.id)
+        ? prefetched.clip
+        : remaining[Math.floor(Math.random() * remaining.length)];
     hasPlayed = false;
     submitting = false;
     els.text.value = "";
@@ -275,7 +322,8 @@
     els.time.textContent = "0:00 / 0:00";
     show(els.annotator);
     sizeCanvas();
-    loadAudio(current);
+    loadAudio(current); // claims the prefetched bytes for `current` first…
+    prefetchNext(current.id); // …then we start downloading the clip after it
     audio.playbackRate = currentSpeed();
     updateSubmitState();
     els.text.focus();
