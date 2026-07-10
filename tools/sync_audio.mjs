@@ -19,7 +19,7 @@
  * done-tracking keep matching after a resync.
  */
 
-import { writeFileSync, mkdirSync, readdirSync, unlinkSync, readFileSync, statSync } from "node:fs";
+import { writeFileSync, appendFileSync, mkdirSync, readdirSync, unlinkSync, readFileSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -106,8 +106,15 @@ try {
   /* first run with no cache — everything gets transcoded */
 }
 
+// Optional per-run cap (MAX_NEW_CLIPS): with hundreds of new files, one giant
+// run holds hours of work uncommitted — a rate-limit death or a manual cancel
+// loses all of it. Capped runs stay short, commit their chunk, and the
+// workflow queues another run for the rest until the folder is caught up.
+const maxNew = Number(process.env.MAX_NEW_CLIPS) || Infinity;
+
 let downloaded = 0;
 let skipped = 0;
+let deferred = 0;
 const failed = [];
 for (const clip of clips) {
   clip.file = mp3Name(clip.name);
@@ -119,6 +126,10 @@ for (const clip of clips) {
     }
   } catch {
     /* not transcoded yet */
+  }
+  if (downloaded >= maxNew) {
+    deferred++;
+    continue;
   }
   await sleep(300); // pace the burst — rapid-fire downloads are what trip Drive's 403s
   const res = await fetchWithRetry(
@@ -191,10 +202,20 @@ try {
 const manifest = { generated, folder: folderId, clips: newClips };
 writeFileSync(join(root, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
 console.log(`Synced ${synced.length}/${clips.length} clips into audio/ and updated manifest.json`);
+if (deferred) console.log(`⏸ ${deferred} clip(s) deferred to the next run (per-run cap: ${maxNew}).`);
 if (failed.length) {
   console.log(
     `⚠ ${failed.length} clip(s) hit Drive's rate limit and were left out of the manifest:\n` +
     failed.map((n) => `    ${n}`).join("\n") +
     "\n  Run the sync again (Actions → Sync audio from Google Drive) to fetch them."
+  );
+}
+
+// Tell the workflow whether to queue a follow-up run — but only if this run
+// actually made progress, so a permanently failing file can't loop forever.
+if (process.env.GITHUB_OUTPUT) {
+  appendFileSync(
+    process.env.GITHUB_OUTPUT,
+    `remaining=${deferred + failed.length}\nprogress=${downloaded}\n`
   );
 }

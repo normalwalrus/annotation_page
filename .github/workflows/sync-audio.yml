@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  actions: write # lets a capped run queue a follow-up for the remaining clips
 
 concurrency:
   group: sync-audio
@@ -28,9 +29,13 @@ jobs:
         run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
 
       - name: Download clips and regenerate manifest
+        id: sync
         env:
           DRIVE_API_KEY: ${{ secrets.DRIVE_API_KEY }}
           DRIVE_FOLDER_ID: ${{ secrets.DRIVE_FOLDER_ID }}
+          # Chunked runs: commit every 100 clips and queue a follow-up run,
+          # so a rate-limit death or manual cancel never discards hours of work.
+          MAX_NEW_CLIPS: "100"
         run: node tools/sync_audio.mjs
 
       - name: Commit and push if anything changed
@@ -40,4 +45,13 @@ jobs:
           git add audio manifest.json
           git diff --cached --quiet && echo "No changes." && exit 0
           git commit -m "Sync audio from Drive"
+          git pull --rebase origin main # someone may have pushed while we synced
           git push
+
+      - name: Queue a follow-up run for the remaining clips
+        if: steps.sync.outputs.remaining != '0' && steps.sync.outputs.progress != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "${{ steps.sync.outputs.remaining }} clips left — queueing another run."
+          gh workflow run sync-audio.yml --ref main --repo "$GITHUB_REPOSITORY"
