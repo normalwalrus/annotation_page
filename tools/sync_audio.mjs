@@ -44,18 +44,19 @@ const audioDir = join(root, "audio");
 mkdirSync(audioDir, { recursive: true });
 
 // Fetch with retry: Drive returns 403/429 when rate-limited on bursts of
-// downloads — back off and try again instead of failing the whole sync.
+// downloads — back off and try again. Returns null when retries run out so
+// the caller can skip that file instead of losing the whole sync's progress.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function fetchWithRetry(url, label, tries = 6) {
+async function fetchWithRetry(url, label, tries = 8) {
   for (let attempt = 1; ; attempt++) {
     const res = await fetch(url).catch((e) => ({ ok: false, status: 0, text: async () => String(e) }));
     if (res.ok) return res;
     const retryable = res.status === 0 || res.status === 403 || res.status === 429 || res.status >= 500;
     if (!retryable || attempt >= tries) {
       console.error(`${label}: HTTP ${res.status} after ${attempt} attempt(s): ${(await res.text()).slice(0, 200)}`);
-      process.exit(1);
+      return null;
     }
-    const wait = Math.min(60000, 1000 * 2 ** attempt) + Math.floor(Math.random() * 1000);
+    const wait = Math.min(90000, 1000 * 2 ** attempt) + Math.floor(Math.random() * 1000);
     console.log(`  … ${label}: HTTP ${res.status}, retrying in ${Math.round(wait / 1000)}s (attempt ${attempt}/${tries})`);
     await sleep(wait);
   }
@@ -73,6 +74,7 @@ do {
   });
   if (pageToken) params.set("pageToken", pageToken);
   const res = await fetchWithRetry(`https://www.googleapis.com/drive/v3/files?${params}`, "list folder");
+  if (!res) process.exit(1); // can't do anything without the folder listing
   const data = await res.json();
   clips.push(...(data.files ?? []));
   pageToken = data.nextPageToken ?? "";
@@ -106,6 +108,7 @@ try {
 
 let downloaded = 0;
 let skipped = 0;
+const failed = [];
 for (const clip of clips) {
   clip.file = mp3Name(clip.name);
   const dest = join(audioDir, clip.file);
@@ -117,10 +120,15 @@ for (const clip of clips) {
   } catch {
     /* not transcoded yet */
   }
+  await sleep(300); // pace the burst — rapid-fire downloads are what trip Drive's 403s
   const res = await fetchWithRetry(
     `https://www.googleapis.com/drive/v3/files/${clip.id}?alt=media&key=${apiKey}`,
     `download ${clip.name}`
   );
+  if (!res) {
+    failed.push(clip.name); // keep going — everything that succeeds still gets committed
+    continue;
+  }
   const tmp = join(tmpdir(), `sync_${clip.id}_${safeName(clip.name)}`);
   writeFileSync(tmp, Buffer.from(await res.arrayBuffer()));
   try {
@@ -156,8 +164,17 @@ for (const cachedName of Object.keys(sources)) {
 }
 writeFileSync(sourcesPath, JSON.stringify(sources, null, 2) + "\n");
 
-clips.sort((a, b) => a.name.localeCompare(b.name));
-const newClips = clips.map((c) => ({ id: c.id, name: c.name, src: `audio/${c.file}` }));
+// Manifest lists only clips whose MP3 actually exists — a clip that failed to
+// download must not 404 in the annotator's player. Reruns pick up the rest.
+const synced = clips.filter((c) => {
+  try {
+    return statSync(join(audioDir, c.file)).size > 0;
+  } catch {
+    return false;
+  }
+});
+synced.sort((a, b) => a.name.localeCompare(b.name));
+const newClips = synced.map((c) => ({ id: c.id, name: c.name, src: `audio/${c.file}` }));
 
 // Keep the old "generated" timestamp when nothing changed, so a no-op sync
 // produces no diff (and the GitHub Action makes no commit).
@@ -173,4 +190,11 @@ try {
 
 const manifest = { generated, folder: folderId, clips: newClips };
 writeFileSync(join(root, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
-console.log(`Synced ${clips.length} clips into audio/ and updated manifest.json`);
+console.log(`Synced ${synced.length}/${clips.length} clips into audio/ and updated manifest.json`);
+if (failed.length) {
+  console.log(
+    `⚠ ${failed.length} clip(s) hit Drive's rate limit and were left out of the manifest:\n` +
+    failed.map((n) => `    ${n}`).join("\n") +
+    "\n  Run the sync again (Actions → Sync audio from Google Drive) to fetch them."
+  );
+}
